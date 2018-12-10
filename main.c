@@ -3,8 +3,8 @@
 #include "stdlib.h"
 #include "math.h"
 #include "time.h"
-// #include "windows.h"
 #include "conio.h"
+// #include "windows.h"
 
 typedef enum{false,true} bool;
 
@@ -49,7 +49,7 @@ int main(int argc, char const *argv[])
 		printf("1 - Play\n");
 		printf("2 - Generate a new map\n");
 		printf("3 - Load a map from file\n");
-		printf("4 - Save current map to file\n");
+		printf("4 - Save current map and progress to file\n");
 		printf("5 - Reset current level\n");
 		printf("6 - Change width size\n");
 		printf("0 - Exit\n");
@@ -62,20 +62,19 @@ int main(int argc, char const *argv[])
 			//change width size
 			case '6':
 			if(mapDim==-1)
-				printf("No map loaded! Generate a new map first.\n");
+				printf("No map loaded! Generate or load a new map first.\n");
 			else
 			{
 				do
 				{
-					printf("Insert window size: (%d)",mapDim);
+					printf("Insert window size: (max: %d): ",mapDim);
 					scanf("%d",&windowSize);
 					fflush(stdin);
-				}while(windowSize>mapDim);
+					if(windowSize>mapDim || windowSize<10)
+						printf("Invalid size!\n");
+				}while(windowSize>mapDim || windowSize<10);
 					printf("Window size changed.\n");
-	
 			}
-			
-		
 			break;
 			
 			//generate new map
@@ -135,7 +134,7 @@ int main(int argc, char const *argv[])
 			}
 			else
 			{
-				printf("No map loaded! Generate a new map first.\n");
+				printf("No map loaded! Generate or load a new map first.\n");
 			}
 			break;
 
@@ -209,8 +208,7 @@ void printMapCentered(int **map,int size,int width)
 					printf(" ");
 					break;
 				}	
-			}
-			
+			}	
 		}
 		printf("\n");
 	}
@@ -405,7 +403,6 @@ int genMapRecursive(int** map,int size, int x, int y, int** prec)
 	map[y][x]=0;
 	int i,j;
 
-
 	//check if there is an odd non-zero and non-diagonally adjacent to cell x-y
 	int rx=-1,ry=-1;
 	int existAdjacent=0;
@@ -480,7 +477,6 @@ int genMapRecursive(int** map,int size, int x, int y, int** prec)
 	//if no adjacent exists for current cell, generation is finished
 	if(existAdjacent==0)
 	{
-		printf("End\n");
 		//map generation finished, if has a cycle return 0 (failure), else place exit and player and return 1 (success)
 		if(x==1&&x==1)
 			return 0;
@@ -564,7 +560,6 @@ void movePlayer(int** map, int size)
 		if(toPrint)
 		{
 			printf("\n\n");
-			// printf("Map centered:\n");
 			printMapCentered(map,size,windowSize);
 			printf("Choose your next move: (wasd - move, q - quit):\n");
 
@@ -574,6 +569,8 @@ void movePlayer(int** map, int size)
 		int px=player[0];
 		int py=player[1];
 		int nx=0,ny=0;
+
+		//using getch so you dont need to press enter at every move; it's a non standard input function
 		// scanf("%c%*c",&chosen);
 		chosen = getch();
 		fflush(stdin);
@@ -599,8 +596,6 @@ void movePlayer(int** map, int size)
 			case 's':
 			nx=+1;
 			break;
-
-			// default: printf("ERROR-----------------------------------------------------------------------------\n");
 		}
 
 		if(!(nx==0 && ny==0) && !(px+nx<0 || px+nx>size-1 || py+ny<0 || py+ny>size-1))
@@ -610,7 +605,6 @@ void movePlayer(int** map, int size)
 				map[px+nx][py+ny]=2;
 				map[px][py]=0;
 				toPrint=true;
-
 			}
 			else
 			{
@@ -618,24 +612,21 @@ void movePlayer(int** map, int size)
 				{
 					printWin();
 					chosen='q';
-
 				}
 				else
 				{
 					if(chosen!='q' && chosen!='Q')
-						{
-							toPrint=false;
-							// printf("Cannot move, ther is a wall!\n");
-						}
+					{
+						toPrint=false;
+					}
 				}
-				
 			}
 		}
 		else
 		{
 			toPrint=false;
 		}
-	}while(chosen!='q' && chosen!='Q');
+	} while(chosen!='q' && chosen!='Q');
 }
 
 void printWin()
