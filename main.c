@@ -8,14 +8,41 @@
 
 typedef enum{false,true} bool;
 
-char exitLab = 'O';
-char player = 64;
-char wall = '|';
+char exitSkin = 'O';
+char playerSkin = 64;
+char wallSkin = '|';
+char moneySkin = '$';
+char randomSkin = '?';
+char bombSkin = '*';
+char lifeSkin = '+';
 
+// spazio vuoto → 0
+// muro → 1	
+// giocatore → 2
+// uscita labirinto → 3
+// soldi → 4
+// bonus random → 5
+// bomba → 6
+// vita → 7
+
+/*
+FILE FORMAT:
+<MapSize> <Life> <Money>
+<mapMatrix x-y> <mapMatrix x-y> <mapMatrix x-y> ...
+<mapMatrix x-y> <mapMatrix x-y> <mapMatrix x-y> ...
+...
+*/
+
+int life=100;
+int moneyScore=0;
+
+int mapDim=-1;
 int mapCounter = 0;
 int minDifficulty = 0;
 int windowSize = 20;
 bool placedExit = false;
+
+time_t start, end;
 
 int strToInt(char *str);
 void printMap(int **map,int size);
@@ -31,6 +58,14 @@ int* getPlayerPosition(int** map, int size);
 void printWin();
 void menu();
 void printAsciiTable();
+void addMoney();
+void hitBomb();
+void addLife();
+void printScore();
+void printGameOver();
+void printScore();
+void printScoreEnd();
+void wait(float sec);
 
 int main(int argc, char const *argv[])
 {
@@ -39,7 +74,6 @@ int main(int argc, char const *argv[])
 	char mapFilePath[100]="map.gm";
 
 	int **map,i;
- 	int mapDim=-1;
 
 	char chosen;
 	do
@@ -173,12 +207,12 @@ int main(int argc, char const *argv[])
 }
 
 
+
+
 void printMapCentered(int **map,int size,int width)
 {
-	// spazio vuoto → 0
-	// muro → 1	
-	// giocatore → 2
-	// uscita labirinto → 3
+	printScore();
+
 	int *pos = getPlayerPosition(map,size);
 	int xp=pos[0];
 	int yp=pos[1];
@@ -193,15 +227,31 @@ void printMapCentered(int **map,int size,int width)
 				switch(map[x+xp][y+yp])
 				{
 					case 1:
-					printf("%c",wall);
+					printf("%c",wallSkin);
 					break;
 
 					case 2:
-					printf("%c",player);
+					printf("%c",playerSkin);
 					break;
 
 					case 3:
-					printf("%c",exitLab);
+					printf("%c",exitSkin);
+					break;
+
+					case 4:
+					printf("%c",moneySkin);
+					break;
+
+					case 5:
+					printf("%c",randomSkin);
+					break;
+
+					case 6:
+					printf("%c",bombSkin);
+					break;
+
+					case 7:
+					printf("%c",lifeSkin);
 					break;
 
 					case 0:
@@ -229,10 +279,7 @@ void printMatMap(int **map,int size)
 
 void printMap(int **map,int size)
 {
-	// spazio vuoto → 0
-	// muro → 1	
-	// giocatore → 2
-	// uscita labirinto → 3
+	printScore();
 
 	int x,y;
 	for(x=0;x<size;x++)
@@ -242,15 +289,31 @@ void printMap(int **map,int size)
 			switch(map[x][y])
 			{
 				case 1:
-				printf("%c",wall);
+				printf("%c",wallSkin);
 				break;
 
 				case 2:
-				printf("%c",player);
+				printf("%c",playerSkin);
 				break;
 
 				case 3:
-				printf("%c",exitLab);
+				printf("%c",exitSkin);
+				break;
+
+				case 4:
+				printf("%c",moneySkin);
+				break;
+
+				case 5:
+				printf("%c",randomSkin);
+				break;
+
+				case 6:
+				printf("%c",bombSkin);
+				break;
+
+				case 7:
+				printf("%c",lifeSkin);
 				break;
 
 				case 0:
@@ -285,10 +348,10 @@ int readDimension(char *path)
 	}
 
 	char dimstr[30];
-	int buf;
+	int buf='A';
 	int i=0;
 	
-	while(1)
+	while(buf!=' ')
 	{
 		buf=fgetc(f);
 
@@ -297,7 +360,7 @@ int readDimension(char *path)
 			printf("Error loading dimension of the map!\n");
 			return -1;
 		}
-		if(buf!='\n')
+		if(buf!='\n' && buf!=' ')
 		{	
 			dimstr[i]=(char)buf;
 			i++;
@@ -316,6 +379,10 @@ int readDimension(char *path)
 //1 if success, 0 if error
 int loadMap(int **map, char *path,int mapDim)
 {
+	int tmplife=-1;
+	int tmpmoneyScore=-1;
+	bool skippedDim=false;
+
 	FILE *f = fopen(path,"r");
 
 	if(f==NULL)
@@ -326,17 +393,78 @@ int loadMap(int **map, char *path,int mapDim)
 
 	//fseek to the location of the first element of map
 	int buf;
-	while(1)
+
+	char ch = ' ';
+	while(ch!='\n')
 	{
 		buf=fgetc(f);
-		
-		if(buf=='\n')
-			break;
+		//skipping map size
+		if(!skippedDim)
+		{
+			if(buf==' ')
+				skippedDim=true;
+		}
+		else
+		{
+			char tmpStr[50];
+			int i=0;
+			//loading life and money
+			if(buf!=' ' && buf!='\n')
+			{
+				if(tmplife==-1)
+				{
+					ch=buf;
+					do
+					{
+						tmpStr[i++]=ch;
+						ch=fgetc(f);
+
+						if(feof(f))
+						{
+							printf("Error loading life of the player!\n");
+							return 0;
+						}
+
+					} while(ch!=' ' && ch!='\n');
+
+					tmpStr[i]='\0';
+
+					tmplife = strToInt(tmpStr);
+
+					if(ch=='\n')
+						break;
+				}
+				else
+				{
+					ch=buf;
+					do
+					{
+						
+						tmpStr[i++]=ch;
+						ch=fgetc(f);
+
+						if(feof(f))
+						{
+							printf("Error loading money of the player!\n");
+							return 0;
+						}
+
+					} while(ch!=' ' && ch!='\n');
+
+					tmpStr[i]='\0';
+
+					tmpmoneyScore = strToInt(tmpStr);
+
+
+				}
+			}
+			
+		}
 
 		if(feof(f))
 		{
 			printf("Error loading dimension of the map!\n");
-			return 0;			
+			return 0;
 		}
 	}
 
@@ -357,6 +485,10 @@ int loadMap(int **map, char *path,int mapDim)
 	}
 
 	fclose(f);
+
+	life=tmplife;
+	moneyScore=tmpmoneyScore;
+
 	return 1;
 }
 
@@ -393,6 +525,23 @@ int **generate_map(int size)
 		genMapRecursive(map,size,1,1,prec);
 
 	} while(!placedExit);
+
+	int rx,ry;
+
+	//place player into random position
+	do
+	{
+		rx = rand()%size;
+		ry = rand()%size;
+
+	}while(map[rx][ry]!=0);
+
+	map[rx][ry]=2;
+
+	//reset life and money
+	life=100;
+ 	moneyScore=0;
+
 	return map;
 }
 
@@ -482,15 +631,39 @@ int genMapRecursive(int** map,int size, int x, int y, int** prec)
 			return 0;
 		else
 		{
-			//place player
-			map[1][1]=2;
 			if(!placedExit)
 			{
-				//randomly place exit here or skip
-				if(rand()%1000 / 1000.0<0.01)
+				//randomly place exit or bonus here or skip
+				float xrand = rand()%1000 / 1000.0;
+				//exit
+				if(xrand<0.01)//1% probability
 				{
 					map[y][x]=3;
 					placedExit = true;
+				}
+				else
+				//money
+				if(xrand<0.1)//9.99% probability
+				{
+					map[y][x]=4;
+				}
+				else
+				//random bonus
+				if(xrand<0.2)//10% probability
+				{
+					map[y][x]=5;
+				}
+				else
+				//bomb
+				if(xrand<0.35)//15% probability
+				{
+					map[y][x]=6;
+				}
+				else
+				//life bonus
+				if(xrand<0.40)//5% probability
+				{
+					map[y][x]=7;
 				}
 			}
 			return mapCounter;
@@ -509,9 +682,18 @@ void saveMap(char path[],int **map, int size)
 		return;
 	}
 
+	//write size of map
 	char tmp[30];
-	sprintf(tmp,"%d\n",size);
+	sprintf(tmp,"%d ",size);
 	fputs(tmp,f);
+	//write life of player
+	sprintf(tmp,"%d ",life);
+	fputs(tmp,f);
+	//write money of player
+	sprintf(tmp,"%d\n",moneyScore);
+	fputs(tmp,f);
+
+
 
 	int x,y;
 	for(x=0;x<size;x++)
@@ -579,65 +761,176 @@ void movePlayer(int** map, int size)
 		{
 			case 'A':
 			case 'a':
-			ny=-1;
+				ny=-1;
 			break;
 			
 			case 'D':
 			case 'd':
-			ny+=1;
+				ny+=1;
 			break;
 
 			case 'W':
 			case 'w':
-			nx=-1;
+				nx=-1;
 			break;
 
 			case 'S':
 			case 's':
-			nx=+1;
+				nx=+1;
+			break;
+
+			case 'Q':
+			case 'q':
+				toPrint=false;
 			break;
 		}
-
+		//if position inside bounds of map
 		if(!(nx==0 && ny==0) && !(px+nx<0 || px+nx>size-1 || py+ny<0 || py+ny>size-1))
 		{
-			if(map[px+nx][py+ny]==0)
+			
+			//hit bonus check
+			switch(map[px+nx][py+ny])
+			{
+				///hit exit
+				case 3:
+					printWin();
+					chosen='q';
+				break;
+
+				//hit money
+				case 4:
+					//increase money randomly between 1-100
+					addMoney();
+				break;
+
+				//hit random bonus
+				case 5:
+				if(rand()%1000 / 1000.0 < 0.5)
+					addMoney();
+				else
+					hitBomb();
+				break;
+
+				//hit bomb
+				case 6:
+					hitBomb();
+				break;
+
+				//hit life bonus
+				case 7:
+					addLife();
+				break;				
+			}
+
+			//if next position is not a wall move the player
+			if(map[px+nx][py+ny]!=1)
 			{
 				map[px+nx][py+ny]=2;
 				map[px][py]=0;
 				toPrint=true;
 			}
 			else
-			{
-				if(map[px+nx][py+ny]==3)
-				{
-					printWin();
-					chosen='q';
-				}
-				else
-				{
-					if(chosen!='q' && chosen!='Q')
-					{
-						toPrint=false;
-					}
-				}
-			}
+				toPrint=false;
 		}
 		else
 		{
 			toPrint=false;
 		}
+
+		//game over checked
+		if(life==0)
+		{
+			printGameOver();
+			mapDim=-1;
+			return;
+		}
 	} while(chosen!='q' && chosen!='Q');
+
+}
+
+void addMoney()
+{
+	int tmp = rand() % 100 + 1;
+	moneyScore += tmp;
+	
+	printf("\n\n");
+	printf("---------------------------------------\n");
+	printf("\t%d$ COLLECTED!\n",tmp);
+	printf("---------------------------------------\n");
+	printf("\n\n");
+	wait(0.8);
+}
+
+void hitBomb()
+{
+	int tmp = rand() % 100 + 1;
+	life -= tmp;
+	if(life<0)
+		life=0;
+
+	printf("\n\n");
+	printf("---------------------------------------\n");
+	printf("\t%dhp LOST!\n",tmp);
+	printf("---------------------------------------\n");
+	printf("\n\n");
+	wait(0.8);
+}
+
+void addLife()
+{	
+	int tmp = rand() % 100 + 1;
+	if(life+tmp>100)
+		life=100;
+	else
+		life += tmp;
+
+	printf("\n\n");
+	printf("---------------------------------------\n");
+	printf("\t%d$ COLLECTED!\n",tmp);
+	printf("---------------------------------------\n");
+	printf("\n\n");
+	wait(0.8);
 }
 
 void printWin()
 {
 	printf("\n\n");
 	printf("---------------------------------------\n");
-	printf("\t\tYOU WON!\n");
+	printf("\tYOU WON!\n");
+	printScoreEnd();
 	printf("---------------------------------------\n");
 	printf("\n\n");
 }
 
+void printGameOver()
+{
+	printf("\n\n");
+	printf("---------------------------------------\n");
+	printf("\tYOU DIED!\n");
+	printScoreEnd();
+	printf("---------------------------------------\n");
+	printf("\n\n");
+}
+
+void printScoreEnd()
+{
+	printf("\tMoney picked up: %d$\n",moneyScore );
+}
+
+void printScore()
+{
+	printf("Money:\t%d$\n",moneyScore);
+	printf("Life:\t%dhp\n",life);
+}
+
+//in seconds
+void wait(float sec)
+{
+	time(&start);
+	do
+		time(&end);
+	while(difftime(end, start) <= sec);
+}
 void printAsciiTable()
 {
 	int i;
