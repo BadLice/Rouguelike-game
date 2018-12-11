@@ -3,7 +3,7 @@
 #include "stdlib.h"
 #include "math.h"
 #include "time.h"
-#include "conio.h"
+// #include "conio.h"
 // #include "windows.h"
 
 typedef enum{false,true} bool;
@@ -752,9 +752,9 @@ void movePlayer(int** map, int size)
 		int py=player[1];
 		int nx=0,ny=0;
 
-		//using getch so you dont need to press enter at every move; it's a non standard input function
-		// scanf("%c%*c",&chosen);
-		chosen = getch();
+		//using getch so you dont need to press enter at every move; it's a non standard input function (works only on windows)
+		scanf("%c%*c",&chosen);
+		// chosen = getch();
 		fflush(stdin);
 
 		switch(chosen)
